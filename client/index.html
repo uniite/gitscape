@@ -1,0 +1,173 @@
+<html>
+<head>
+    <script src="js/vendor/handlebars.min.js" type="text/javascript"></script>
+    <script src="js/vendor/jquery/jquery-1.7.1.min.js" type="text/javascript"></script>
+    <script src="js/client.js" type="text/javascript"></script>
+    <script>
+        var compiledCommitTemplate;
+        $(function() {
+            var source   = $("#commitTemplate").html();
+            compiledCommitTemplate = Handlebars.compile(source);
+        });
+
+        function getDate(timestamp) {
+            var d = new Date(0);
+            d.setUTCSeconds(timestamp);
+            return d;
+        }
+
+        function scrollToCommit(sha) {
+            $('html, body').stop().animate({
+                scrollTop: $("a[name=" + sha + "]").offset().top - 40
+            });
+        }
+
+        var commits = {};
+        var selectedCommits = [];
+        function wsCallback(data) {
+            console.log(data);
+            for (var i in data) {
+                data[i].authored_date = getDate(data[i].authored_date);
+                data[i].side = data[i].branch == "origin/staging" ? "a" : "b";
+            }
+            commits = data;
+            $("#commits").html(compiledCommitTemplate({
+                commits: data
+            }));
+            var selectedCommits = [];
+            $(".commit").click(function() {
+                var sha = $("a", this).text().trim();
+                if ($(this).hasClass("selected")) {
+                    $(this).removeClass("selected");
+                    selectedCommits.splice(selectedCommits.indexOf(sha), 1);
+                } else {
+                    $(this).addClass("selected");
+                    selectedCommits.push(sha);
+                }
+                $("#command").html("git cherry-pick " + selectedCommits.map(function(x) {
+                    return "<a href=\"#" + x + "\">" + x + "</a>";
+                }).join(" "));
+                $("#command a").click(function(e) {
+                    scrollToCommit($(this).text().trim());
+                    e.preventDefault();
+                });
+            });
+        }
+    </script>
+
+    <script id="commitTemplate" type="text/x-handlebars">
+        {{#each commits}}
+            <a name="{{hexsha}}"></a>
+            <div class="commit side-{{side}}">
+                <span style="float: right">
+                    {{branch}}
+                </span>
+
+                <strong>{{message}}</strong>
+                <br />
+                {{author.name}}
+                 -
+                <span style="">
+                    {{authored_date}}
+                </span>
+                <br />
+                <a href="https://github.com/eachscape/builder/commit/{{hexsha}}">
+                    {{hexsha}}
+                </a>
+            </div>
+        {{/each}}
+    </script>
+
+    <link href="css/vendor/bootstrap.min.css" rel="stylesheet" type="text/css" />
+
+    <style>
+        body {
+            background: #1f1f1f;
+            color: #ddd;
+        }
+
+        #commits {
+            margin: 0 auto;
+            padding-top: 40px;
+            padding-bottom: 4em;
+        }
+
+        .commit {
+            border-bottom: none;
+            border-radius: 5px;
+            margin: 0 auto;
+            padding: 1em;'
+            padding-right: 5em;
+            text-align: left;
+        }
+
+        /*.commit:nth-child(even) {
+            background: #293040;
+        }
+        .commit:nth-child(odd) {
+            background: #1f1f1f;
+        }*/
+
+        .commit:hover {
+            background: #293040;
+        }
+
+        .commit.selected {
+            background: #495365;
+            border-radius: 0;
+        }
+
+        .commit.side-b {
+            border: solid white 1px;
+        }
+
+        .commit a:link,
+        .commit a:visited,
+        .commit a:active {
+            color: #6799cc;
+            text-decoration: none;
+        }
+        .commit a:hover {
+            text-decoration: underline;
+        }
+
+
+        #footer {
+            background: #1f1f1f;
+            border-top: solid #ccc 1px;
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+        }
+        #command {
+            padding: 1em;
+        }
+    </style>
+</head>
+<body>
+    <div class="navbar navbar-fixed-top">
+        <div class="navbar-inner">
+            <div class="container">
+                <a class="brand" href="#">
+                    GitScape
+                </a>
+                <div class="nav-collapse">
+                    <ul class="nav">
+                        <li class="active">
+                            <a href="#">Branch Diff</a>
+                        </li>
+                        <li><a href="#">Log</a></li>
+                        <li><a href="#">Help</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="commits" class="container"></div>
+    <div id="footer">
+        <div id="command">
+            Select some commits
+        </div>
+    </div>
+</body>
+</html>
