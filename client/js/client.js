@@ -1,15 +1,10 @@
 ws = new WebSocket("ws://localhost:8000");
 ws.onopen = function() {
     console.log("Opened");
-    wsCommand("git", "branch_diff", "origin/staging", "origin/live")
+    wsCommand("git", "branches")
 }
 ws.onmessage = function(msg) {
     wsCallback(JSON.parse(msg.data));
-}
-
-
-function echo(msg) {
-    wsCommand("test", "echo", "Hello, world!");
 }
 
 function wsCommand(controller, action) {

@@ -1,13 +1,14 @@
 <html>
 <head>
-    <script src="js/vendor/handlebars.min.js" type="text/javascript"></script>
     <script src="js/vendor/jquery/jquery-1.7.1.min.js" type="text/javascript"></script>
+    <script src="js/vendor/bootstrap.min.js" type="text/javascript"></script>
+    <script src="js/vendor/handlebars.min.js" type="text/javascript"></script>
+    <script src="js/vendor/knockout/knockout-2.0.0.js" type="text/javascript"></script>
+    <script src="js/vendor/knockout/knockout.mapping-2.0.1.js" type="text/javascript"></script>
     <script src="js/client.js" type="text/javascript"></script>
     <script>
         var compiledCommitTemplate;
         $(function() {
-            var source   = $("#commitTemplate").html();
-            compiledCommitTemplate = Handlebars.compile(source);
         });
 
         function getDate(timestamp) {
@@ -24,63 +25,118 @@
 
         var commits = {};
         var selectedCommits = [];
-        function wsCallback(data) {
-            console.log(data);
-            for (var i in data) {
-                data[i].authored_date = getDate(data[i].authored_date);
-                data[i].side = data[i].branch == "origin/staging" ? "a" : "b";
-            }
-            commits = data;
-            $("#commits").html(compiledCommitTemplate({
-                commits: data
-            }));
-            var selectedCommits = [];
-            $(".commit").click(function() {
-                var sha = $("a", this).text().trim();
-                if ($(this).hasClass("selected")) {
-                    $(this).removeClass("selected");
-                    selectedCommits.splice(selectedCommits.indexOf(sha), 1);
-                } else {
-                    $(this).addClass("selected");
-                    selectedCommits.push(sha);
-                }
-                $("#command").html("git cherry-pick " + selectedCommits.map(function(x) {
-                    return "<a href=\"#" + x + "\">" + x + "</a>";
-                }).join(" "));
+
+        var CommitModel = function(data, repo) {
+            var self = this;
+            ko.mapping.fromJS(data, {}, this);
+
+            this.selected = ko.observable(false);
+
+            this.link = ko.computed(function() {
+                return "https://github.com/eachscape/builder/commit/" + this.hexsha();
+            }, this);
+
+            this.scrollTo = function(commit) {
                 $("#command a").click(function(e) {
-                    scrollToCommit($(this).text().trim());
+                    $("html, body").stop().animate({
+                        scrollTop: $("a[name=" + commit.hexsha() + "]").offset().top - 40
+                    });
                     e.preventDefault();
                 });
-            });
+            }
+
+            this.select = function(commit) {
+                if (commit.selected()) {
+                    commit.selected(false);
+                    repo.selectedCommits.remove(commit);
+                } else {
+                    commit.selected(true);
+                    repo.selectedCommits.push(commit);
+                }
+            }
+
+            this.shortMessage = ko.computed(function() {
+                var lines = this.message().split("\n");
+                if (lines.length > 1) {
+                    return lines[0] + "...";
+                } else {
+                    return lines[0];
+                }
+            }, this);
+
+            this.upstream = ko.computed(function() {
+                return this.branch() == "origin/live";
+            }, this);
         }
-    </script>
 
-    <script id="commitTemplate" type="text/x-handlebars">
-        {{#each commits}}
-            <a name="{{hexsha}}"></a>
-            <div class="commit side-{{side}}">
-                <span style="float: right">
-                    {{branch}}
-                </span>
+        var RepoModel = function(data) {
+            var self = this;
+            ko.mapping.fromJS(data, {}, this);
 
-                <strong>{{message}}</strong>
-                <br />
-                {{author.name}}
-                 -
-                <span style="">
-                    {{authored_date}}
-                </span>
-                <br />
-                <a href="https://github.com/eachscape/builder/commit/{{hexsha}}">
-                    {{hexsha}}
-                </a>
-            </div>
-        {{/each}}
+            this.commits = ko.observableArray();
+
+            this.setBranchA = function(branch) {
+                self.branchA(branch);
+                self.branchDiff();
+            }
+            this.setBranchB = function(branch) {
+                self.branchB(branch);
+                self.branchDiff();
+            }
+            this.branchDiff = function() {
+                $("#loader").show();
+                $("#commits, #footer").hide();
+                wsCommand("git", "branch_diff", self.branchA(), self.branchB());
+            }
+
+            this.selectedCommits = ko.observableArray();
+
+            this.gitCommand = ko.computed(function() {
+                if (this.selectedCommits().length == 0) {
+                    return "Select some commits";
+                } else {
+                    return "git cherry-pick " + this.selectedCommits().join(" ");
+                }
+            }, this);
+        };
+
+        var theRepo;
+        function wsCallback(data) {
+            console.log(data);
+            var commits = data.commits;
+            if (commits) {
+                for (var i in commits) {
+                    commits[i].authored_date = getDate(commits[i].authored_date);
+                }
+                var mapping = {
+                    commits: {
+                        create: function(options) {
+                            return new CommitModel(options.data, self);
+                        }
+                    }
+                };
+                theRepo.commits(ko.mapping.fromJS(data, mapping).commits());
+                $("#loader").hide();
+                $("#commits, #footer").fadeIn();
+            } else {
+                theRepo = new RepoModel(data);
+                ko.applyBindings(theRepo);
+                theRepo.branchDiff();
+            }
+        }
     </script>
 
     <link href="css/vendor/bootstrap.min.css" rel="stylesheet" type="text/css" />
 
     <style>
+
+        .truncate {
+            height: 1.5em;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap
+        }
+
         body {
             background: #1f1f1f;
             color: #ddd;
@@ -88,8 +144,8 @@
 
         #commits {
             margin: 0 auto;
-            padding-top: 40px;
             padding-bottom: 4em;
+            padding-top: 40px;
         }
 
         .commit {
@@ -101,13 +157,6 @@
             text-align: left;
         }
 
-        /*.commit:nth-child(even) {
-            background: #293040;
-        }
-        .commit:nth-child(odd) {
-            background: #1f1f1f;
-        }*/
-
         .commit:hover {
             background: #293040;
         }
@@ -117,14 +166,14 @@
             border-radius: 0;
         }
 
-        .commit.side-b {
+        .commit.upstream {
             border: solid white 1px;
         }
 
         .commit a:link,
         .commit a:visited,
         .commit a:active {
-            color: #6799cc;
+            /*color: #6799cc;*/
             text-decoration: none;
         }
         .commit a:hover {
@@ -151,22 +200,85 @@
                 <a class="brand" href="#">
                     GitScape
                 </a>
-                <div class="nav-collapse">
-                    <ul class="nav">
-                        <li class="active">
-                            <a href="#">Branch Diff</a>
-                        </li>
-                        <li><a href="#">Log</a></li>
-                        <li><a href="#">Help</a></li>
-                    </ul>
-                </div>
+                <ul class="nav">
+                    <li class="active">
+                        <a href="#">Branch Diff</a>
+                    </li>
+                    <li><a href="#">Log</a></li>
+                    <li><a href="#">Help</a></li>
+                </ul>
             </div>
         </div>
     </div>
-    <div id="commits" class="container"></div>
-    <div id="footer">
+    <div id="loader" class="container"
+         style="margin-top: 100px; text-align: center;">
+        <img src="images/spinner.gif" style="margin: 0 auto"/>
+    </div>
+    <div id="commits" class="container" style="display: none">
+        <div class="btn-group" style="float: left">
+            <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">
+                <span data-bind="text: branchA"></span>
+                <span class="caret"></span>
+            </a>
+            <ul class="dropdown-menu" data-bind="foreach: branches">
+                <li>
+                    <a href="#" data-bind="click: $parent.setBranchA, text: $data"></a>
+                </li>
+            </ul>
+        </div>
+        <div class="btn-group" style="float: left">
+            <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">
+                <span data-bind="text: branchB"></span>
+                <span class="caret"></span>
+            </a>
+            <ul class="dropdown-menu" data-bind="foreach: branches">
+                <li>
+                    <a href="#" data-bind="click: $parent.setBranchB, text: $data"></a>
+                </li>
+            </ul>
+        </div>
+        <br style="clear: both" />
+
+        <div data-bind="foreach: commits" style="margin-top: 1em">
+            <a data-bind="attr: { name: hexsha }"></a>
+            <div class="commit" data-bind="click: select, css: { selected: selected }">
+                <span class="label" style="float: right"
+                      data-bind="css: { 'label-info': upstream }, text: branch">
+                </span>
+
+                <div class="truncate" style="padding-right: 1em;"
+                     data-bind="attr: { title: message }, text: message">
+                </div>
+
+                <span data-bind="text: author.name"></span>
+                    &nbsp;
+                    <span style="" data-bind="text: authored_date">
+                    </span>
+                <br />
+                <a data-bind="attr: { href: link }, text: hexsha">
+                </a>
+            </div>
+        </div>
+        <div data-bind="visible: commits().length == 0"
+             style="text-align: center">
+            <h3>
+                Branches are identical
+            </h3>
+        </div>
+    </div>
+    <div id="footer" style="display: none">
         <div id="command">
-            Select some commits
+            <!-- ko if: selectedCommits().length > 0 -->
+                git cherry-pick
+                <span data-bind="foreach: selectedCommits">
+                    <a data-bind="click: scrollTo, text: hexsha"
+                       href="#">
+                    </a>
+                </span>
+            <!-- /ko -->
+            <!-- ko if: selectedCommits().length == 0 -->
+                Select some commits
+            <!-- /ko -->
         </div>
     </div>
 </body>

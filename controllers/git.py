@@ -1,5 +1,12 @@
+def branches(session):
+    return {
+        "branches": [b.name for b in session.repo.branches],
+        "branchA": "staging",
+        "branchB": "live"
+    }
+
 def branch_diff(session, branch_a, branch_b):
-    diff = session.repo.git.cherry("origin/staging", "origin/live")
+    diff = session.repo.git.cherry(branch_a, branch_b)
 
     commits = []
     for line in diff.splitlines():
@@ -19,4 +26,10 @@ def branch_diff(session, branch_a, branch_b):
                 commit_dict[role][attr] = getattr(getattr(commit, role), attr)
         commits.append(commit_dict)
 
-    return commits
+
+
+    return {
+        "commits": commits,
+        "branchA": branch_a,
+        "branchB": branch_b
+    }
