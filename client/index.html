@@ -84,6 +84,7 @@
                 self.branchDiff();
             }
             this.branchDiff = function() {
+                self.selectedCommits([]);
                 $("#loader").show();
                 $("#commits, #footer").hide();
                 wsCommand("git", "branch_diff", self.branchA(), self.branchB());
@@ -111,7 +112,7 @@
                 var mapping = {
                     commits: {
                         create: function(options) {
-                            return new CommitModel(options.data, self);
+                            return new CommitModel(options.data, theRepo);
                         }
                     }
                 };
