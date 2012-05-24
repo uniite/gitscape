@@ -1,8 +1,10 @@
+from operator import itemgetter
+
 def branches(session):
     return {
-        "branches": [b.name for b in session.repo.branches],
-        "branchA": "staging",
-        "branchB": "live"
+        "branches": ["origin/%s" % b.name for b in session.repo.branches] + [b.name for b in session.repo.branches],
+        "branchA": "origin/staging",
+        "branchB": "origin/live"
     }
 
 def branch_diff(session, branch_a, branch_b):
@@ -26,6 +28,7 @@ def branch_diff(session, branch_a, branch_b):
                 commit_dict[role][attr] = getattr(getattr(commit, role), attr)
         commits.append(commit_dict)
 
+    commits.sort(key=itemgetter("authored_date"), reverse=True)
 
 
     return {
