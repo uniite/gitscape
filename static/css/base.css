@@ -1,0 +1,61 @@
+.truncate {
+    height: 1.5em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap
+}
+
+body {
+    background: #1f1f1f;
+    color: #ddd;
+}
+
+#commits {
+    margin: 0 auto;
+    padding-bottom: 4em;
+    padding-top: 40px;
+}
+
+.commit {
+    border-bottom: none;
+    border-radius: 5px;
+    margin: 0 auto;
+    padding: 1em;'
+padding-right: 5em;
+    text-align: left;
+}
+
+.commit:hover {
+    background: #293040;
+}
+
+.commit.selected {
+    background: #495365;
+    border-radius: 0;
+}
+
+.commit.upstream {
+    border: solid white 1px;
+}
+
+.commit a:link,
+.commit a:visited,
+.commit a:active {
+    /*color: #6799cc;*/
+    text-decoration: none;
+}
+.commit a:hover {
+    text-decoration: underline;
+}
+
+
+#footer {
+    background: #1f1f1f;
+    border-top: solid #ccc 1px;
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+}
+#command {
+    padding: 1em;
+}

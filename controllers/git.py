@@ -3,20 +3,20 @@ from operator import itemgetter
 def branches(session, repo=None):
     return {
         "branches": ["origin/%s" % b.name for b in repo.branches] + [b.name for b in repo.branches],
-        "branchA": "origin/master",
-        "branchB": "origin/master"
+        "base": "origin/master",
+        "upstream": "origin/master"
     }
 
-def branch_diff(session, branch_a="origin/master", branch_b="master", repo=None):
-    diff = repo.git.cherry(branch_a, branch_b)
+def branch_diff(session, base="origin/master", upstream="master", repo=None):
+    diff = repo.git.cherry(base, upstream)
 
     commits = []
     for line in diff.splitlines():
         side, sha = line.split()
         if side == "-":
-            branch = branch_a
+            branch = base
         else:  # side == "+"
-            branch = branch_b
+            branch = upstream
         commit = repo.commit(sha)
         commit_dict = {}
         commit_dict["branch"] = branch
@@ -33,6 +33,6 @@ def branch_diff(session, branch_a="origin/master", branch_b="master", repo=None)
 
     return {
         "commits": commits,
-        "branchA": branch_a,
-        "branchB": branch_b
+        "base": base,
+        "upstream": upstream
     }
