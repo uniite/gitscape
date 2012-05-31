@@ -1,10 +1,11 @@
 var compiledCommitTemplate;
+var theRepo;
+
 $(function() {
-    ajaxCall("branches", {}, function(data) {
-        theRepo = new RepoModel(data);
-        ko.applyBindings(theRepo);
-        theRepo.branchDiff();
-    });
+    theRepo = new RepoModel({});
+    theRepo.loadBranches();
+    theRepo.loadRepos();
+    ko.applyBindings(theRepo);
 });
 
 function getDate(timestamp) {
@@ -36,7 +37,7 @@ var CommitModel = function(data, repo) {
     this.scrollTo = function(commit) {
         $("#command a").click(function(e) {
             $("html, body").stop().animate({
-               scrollTop: $("a[name=" + commit.hexsha() + "]").offset().top - 40
+               scrollTop: $("a[name={0}]".format(commit.hexsha())).offset().top + 90
             });
             e.preventDefault();
         });
@@ -79,25 +80,56 @@ var RepoModel = function(data) {
 
     this.commits = ko.observableArray();
 
-    this.setBase = function(branch) {
-        self.base(branch);
-        self.branchDiff();
-    }
-    this.setUpstream = function(branch) {
-        self.upstream(branch);
-        self.branchDiff();
-    }
+
     this.branchDiff = function() {
         self.selectedCommits([]);
         $("#loader").show();
-        $("#commits, #footer").hide();
+        $("#commits .content, #footer").hide();
         ajaxCall("branch_diff", {
             base: self.base(),
             upstream: self.upstream()
         }, loadCommits);
     }
+    this.loadBranches = function() {
+        $("#commits").hide();
+        ajaxCall("branches", {}, function(data) {
+            ko.mapping.fromJS(data, {}, self);
+            $("#commits").fadeIn();
+            theRepo.branchDiff();
+        });
+    }
+    this.loadRepos = function() {
+        ajaxCall("repos", {}, function(data) {
+            self.repos(data);
+            self.currentRepo(self.repos()[0]);
+        });
+    }
 
+    this.setBase = function(branch) {
+        self.base(branch);
+        self.branchDiff();
+    }
+    this.setRepo = function(repoPath) {
+        ajaxCall("set_repo", {path: repoPath}, function(data) {
+            if (data === true) {
+                self.currentRepo(repoPath);
+                self.loadBranches();
+            } else {
+                alert("Could not switch repos");
+            }
+        });
+    }
+    this.setUpstream = function(branch) {
+        self.upstream(branch);
+        self.branchDiff();
+    }
+
+    this.base = ko.observable();
+    this.branches = ko.observable();
+    this.currentRepo = ko.observable();
+    this.repos = ko.observableArray();
     this.selectedCommits = ko.observableArray();
+    this.upstream = ko.observable();
 
     this.gitCommand = ko.computed(function() {
         if (this.selectedCommits().length == 0) {
@@ -124,7 +156,7 @@ function loadCommits(data) {
     };
     theRepo.commits(ko.mapping.fromJS(data, mapping).commits());
     $("#loader").hide();
-    $("#commits, #footer").fadeIn();
+    $("#commits .content, #footer").fadeIn();
 }
 
 function ajaxCall(path, args, callback) {

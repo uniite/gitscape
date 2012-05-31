@@ -5,9 +5,12 @@ from functools import wraps
 
 import controllers.git
 import settings
+import subprocess
 
 
 app = Flask(__name__)
+app.secret_key = "SOMETHING RANDOM GOES HERE"
+#subprocess.call(["coffee", "-wc", "-o", "static/js", "static/coffee/"], shell=True)
 
 
 def view(func):
@@ -32,7 +35,17 @@ def index():
 
 @view
 def repos(session, repo=None):
-    return json.dumps(repo_list)
+    return repo_list
+
+@view
+def set_repo(session, path=None, repo=None):
+    path = path[0]
+    print path
+    if path in repo_list:
+        session["repo_path"] = path
+        return True
+    else:
+        return False
 
 
 view(controllers.git.branches)
